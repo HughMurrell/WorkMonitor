@@ -56,21 +56,26 @@ format_elapsed() {
     printf "%02d:%02d:%02d" $hours $minutes $secs
 }
 
-# Adjust stop date to include the entire day
-# For macOS: use -v+1d -v-1S
-# For Linux: add 23:59:59
-if date -j -f "%Y-%m-%d" "$STOP_DATE" "+%Y-%m-%d" >/dev/null 2>&1; then
+# Adjust dates to include the entire day range (inclusive)
+# For macOS: use -v+1d -v-1S for end date
+# For Linux: add 23:59:59 for end date
+# START_DATE should begin at 00:00:00 (git log --since is inclusive)
+# STOP_DATE should end at 23:59:59 (git log --until is exclusive, so we need to go to next day)
+if date -j -f "%Y-%m-%d" "$START_DATE" "+%Y-%m-%d" >/dev/null 2>&1; then
     # macOS
+    START_DATE_INCLUSIVE="${START_DATE} 00:00:00"
     STOP_DATE_INCLUSIVE=$(date -j -f "%Y-%m-%d" -v+1d -v-1S "$STOP_DATE" "+%Y-%m-%d %H:%M:%S")
 else
     # Linux
+    START_DATE_INCLUSIVE="${START_DATE} 00:00:00"
     STOP_DATE_INCLUSIVE="${STOP_DATE} 23:59:59"
 fi
 
 # Get all commits in the date range with their timestamps and messages
 # Format: hash|author_date_iso|message
+# --since is inclusive, --until is exclusive, so we use STOP_DATE_INCLUSIVE which goes to end of day
 TMPFILE=$(mktemp)
-git log --since="$START_DATE" --until="$STOP_DATE_INCLUSIVE" --format="%H|%ai|%s" --reverse > "$TMPFILE"
+git log --since="$START_DATE_INCLUSIVE" --until="$STOP_DATE_INCLUSIVE" --format="%H|%ai|%s" --reverse > "$TMPFILE"
 
 # Check if we have any commits
 if [ ! -s "$TMPFILE" ]; then
@@ -122,6 +127,7 @@ while IFS='|' read -r hash timestamp message; do
             fi
             
             # Collect all commit messages between START and STOP (exclusive of START/STOP)
+            # Concatenate all messages with semicolons
             COMMIT_MESSAGES=""
             if [ -n "$START_EPOCH" ] && [ -n "$STOP_EPOCH" ]; then
                 while IFS='|' read -r commit_hash commit_timestamp commit_msg; do
@@ -130,7 +136,7 @@ while IFS='|' read -r hash timestamp message; do
                         continue
                     fi
                     
-                    # Check if this commit is between START and STOP
+                    # Check if this commit is between START and STOP (exclusive, since START/STOP are skipped by pattern)
                     COMMIT_EPOCH=$(date_to_epoch "$commit_timestamp")
                     
                     if [ -n "$COMMIT_EPOCH" ] && [ "$COMMIT_EPOCH" -gt "$START_EPOCH" ] && [ "$COMMIT_EPOCH" -lt "$STOP_EPOCH" ]; then
