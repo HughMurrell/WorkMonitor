@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# Wrapper script to start work on a repository
+# Usage: ./startWork <repository_path>
+
+if [ -z "$1" ]; then
+    echo "Error: Repository path is required"
+    echo "Usage: ./startWork <repository_path>"
+    exit 1
+fi
+
+REPO_PATH="$1"
+
+# Call repoMonitor.sh with start parameter
+repoMonitor.sh start="$REPO_PATH"
+

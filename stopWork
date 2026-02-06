@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# Wrapper script to stop work on a repository
+# Usage: ./stopWork <repository_path>
+
+if [ -z "$1" ]; then
+    echo "Error: Repository path is required"
+    echo "Usage: ./stopWork <repository_path>"
+    exit 1
+fi
+
+REPO_PATH="$1"
+
+# Call repoMonitor.sh with stop parameter
+repoMonitor.sh stop="$REPO_PATH"
+
