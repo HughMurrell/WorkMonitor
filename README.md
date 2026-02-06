@@ -21,10 +21,12 @@ Here we plane to create shell scripts:
    mkdir -p ~/.local/bin
    ```
 
-3. **Copy the script to ~/.local/bin and make it executable:**
+3. **Copy the scripts to ~/.local/bin and make them executable:**
    ```bash
    cp repoMonitor.sh ~/.local/bin/repoMonitor.sh
-   chmod +x ~/.local/bin/repoMonitor.sh
+   cp startWork ~/.local/bin/startWork
+   cp stopWork ~/.local/bin/stopWork
+   chmod +x ~/.local/bin/repoMonitor.sh ~/.local/bin/startWork ~/.local/bin/stopWork
    ```
 
 4. **Ensure ~/.local/bin is in your PATH:**
@@ -48,7 +50,11 @@ Here we plane to create shell scripts:
    repoMonitor.sh
    ```
    
-   You should see the usage message if the script is working correctly.
+   You should see the usage message if the script is working correctly. You can also verify the wrapper scripts:
+   ```bash
+   startWork
+   stopWork
+   ```
 
 6. **Optional - Delete the WorkMonitor repository:**
    
@@ -60,7 +66,21 @@ Here we plane to create shell scripts:
 
 ## Usage
 
-Run the script with named parameters to start or stop work on a repository:
+You can use the wrapper scripts for a simpler interface, or call `repoMonitor.sh` directly:
+
+### Using wrapper scripts (recommended):
+
+**To start work:**
+```bash
+startWork /path/to/your/repository
+```
+
+**To stop work:**
+```bash
+stopWork /path/to/your/repository
+```
+
+### Using repoMonitor.sh directly:
 
 **To start work:**
 ```bash
@@ -73,8 +93,8 @@ repoMonitor.sh stop=/path/to/your/repository
 ```
 
 The script will create an empty commit with the message:
-- "START work on <repository>" when using `start=`
-- "STOP work on <repository>" when using `stop=`
+- "START work on <repository>" when starting work
+- "STOP work on <repository>" when stopping work
 
 (where `<repository>` is the name of the repository extracted from the local git repository)
 
