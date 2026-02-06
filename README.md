@@ -27,7 +27,8 @@ Here we provide shell scripts that use
    cp repoMonitor.sh ~/.local/bin/repoMonitor.sh
    cp startWork ~/.local/bin/startWork
    cp stopWork ~/.local/bin/stopWork
-   chmod +x ~/.local/bin/repoMonitor.sh ~/.local/bin/startWork ~/.local/bin/stopWork
+   cp tabulateWork ~/.local/bin/tabulateWork
+   chmod +x ~/.local/bin/repoMonitor.sh ~/.local/bin/startWork ~/.local/bin/stopWork ~/.local/bin/tabulateWork
    ```
 
 4. **Ensure ~/.local/bin is in your PATH:**
@@ -55,6 +56,7 @@ Here we provide shell scripts that use
    ```bash
    startWork
    stopWork
+   tabulateWork
    ```
 
 6. **Optional - Delete the WorkMonitor repository:**
@@ -100,3 +102,39 @@ The script will create an empty commit with the message:
 (where `<repository>` is the name of the repository extracted from the local git repository)
 
 The commit will be pushed to GitHub automatically.
+
+## Generating Work Reports
+
+Use `tabulateWork` to generate a CSV report of work sessions from git commits:
+
+```bash
+tabulateWork <start_date> <stop_date> <repository_path>
+```
+
+**Parameters:**
+- `start_date`: Start date in format YYYY-MM-DD (inclusive)
+- `stop_date`: Stop date in format YYYY-MM-DD (inclusive)
+- `repository_path`: Path to the git repository
+
+**Example:**
+```bash
+tabulateWork 2024-01-01 2024-01-31 /path/to/your/repository
+```
+
+**Output:**
+The script generates a CSV file with the following columns:
+- `date`: Date of the work session
+- `start_time`: Start time (HH:MM:SS)
+- `stop_time`: Stop time (HH:MM:SS)
+- `time_elapsed`: Time elapsed between start and stop (HH:MM:SS format)
+- `repo_name`: Name of the repository
+- `commit_messages`: Semicolon-separated list of all commit messages between start and stop commits
+
+**Redirecting output to a file:**
+```bash
+tabulateWork 2024-01-01 2024-01-31 /path/to/your/repository > work_report.csv
+```
+
+The CSV file can be opened in spreadsheet applications like Excel, Google Sheets, or LibreOffice Calc for further analysis.
+
+**Note:** The script pairs START and STOP commits to calculate work sessions. If a START commit doesn't have a matching STOP commit, it will be marked as "Unfinished session" with empty stop time and elapsed time fields.
