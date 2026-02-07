@@ -5,7 +5,7 @@ Here we provide shell scripts that use
 
 **startWork** record START time when working on a repository 
 **stopWork** record STOP time after completing work on a repository
-**tabulateWork** generate csv file tabulating work sessions
+**tabulateWork** generate csv file tabulating work sessions during a period.
 
 ## Installation
 

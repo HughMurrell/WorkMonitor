@@ -85,13 +85,13 @@ if [ ! -s "$TMPFILE" ]; then
 fi
 
 # Output CSV header
-echo "date,start_time,stop_time,time_elapsed,repo_name,commit_messages"
+echo "date,start_time,stop_time,duration,activity"
 
 # Process commits to find START/STOP pairs
 START_HASH=""
 START_TIMESTAMP=""
 START_DATE_ONLY=""
-START_TIME_ONLY=""
+START_DATETIME=""
 IN_WORK_SESSION=false
 
 while IFS='|' read -r hash timestamp message; do
@@ -99,13 +99,15 @@ while IFS='|' read -r hash timestamp message; do
     if [[ "$message" =~ ^START\ work\ on\ .+$ ]]; then
         if [ "$IN_WORK_SESSION" = true ]; then
             # Previous session didn't have a STOP, output it with empty stop time
-            echo "\"$START_DATE_ONLY\",\"$START_TIME_ONLY\",\"\",\"\",\"$REPO_NAME\",\"Unfinished session\""
+            ACTIVITY_WITH_REPO="${REPO_NAME}: Unfinished session"
+            ACTIVITY_ESCAPED=$(echo "$ACTIVITY_WITH_REPO" | sed 's/"/""/g')
+            echo "\"$START_DATE_ONLY\",\"$START_DATETIME\",\"\",\"\",\"$ACTIVITY_ESCAPED\""
         fi
         
         START_HASH="$hash"
         START_TIMESTAMP="$timestamp"
         START_DATE_ONLY=$(echo "$timestamp" | awk '{print $1}')
-        START_TIME_ONLY=$(echo "$timestamp" | awk '{print $2}')
+        START_DATETIME="${START_DATE_ONLY} $(echo "$timestamp" | awk '{print $2}')"
         IN_WORK_SESSION=true
         
     # Check if this is a STOP commit
@@ -113,7 +115,7 @@ while IFS='|' read -r hash timestamp message; do
         if [ "$IN_WORK_SESSION" = true ]; then
             STOP_TIMESTAMP="$timestamp"
             STOP_DATE_ONLY=$(echo "$timestamp" | awk '{print $1}')
-            STOP_TIME_ONLY=$(echo "$timestamp" | awk '{print $2}')
+            STOP_DATETIME="${STOP_DATE_ONLY} $(echo "$timestamp" | awk '{print $2}')"
             
             # Calculate time elapsed
             START_EPOCH=$(date_to_epoch "$START_TIMESTAMP")
@@ -121,9 +123,9 @@ while IFS='|' read -r hash timestamp message; do
             
             if [ -n "$START_EPOCH" ] && [ -n "$STOP_EPOCH" ] && [ "$STOP_EPOCH" -ge "$START_EPOCH" ]; then
                 ELAPSED_SECONDS=$((STOP_EPOCH - START_EPOCH))
-                TIME_ELAPSED=$(format_elapsed $ELAPSED_SECONDS)
+                DURATION=$(format_elapsed $ELAPSED_SECONDS)
             else
-                TIME_ELAPSED=""
+                DURATION=""
             fi
             
             # Collect all commit messages between START and STOP (exclusive of START/STOP)
@@ -149,24 +151,31 @@ while IFS='|' read -r hash timestamp message; do
                 done < "$TMPFILE"
             fi
             
-            # Escape quotes in commit messages for CSV
-            COMMIT_MESSAGES_ESCAPED=$(echo "$COMMIT_MESSAGES" | sed 's/"/""/g')
+            # Prepend repository name to activity and escape quotes for CSV
+            if [ -n "$COMMIT_MESSAGES" ]; then
+                ACTIVITY_WITH_REPO="${REPO_NAME}: ${COMMIT_MESSAGES}"
+            else
+                ACTIVITY_WITH_REPO="${REPO_NAME}:"
+            fi
+            ACTIVITY_ESCAPED=$(echo "$ACTIVITY_WITH_REPO" | sed 's/"/""/g')
             
             # Output the row
-            echo "\"$START_DATE_ONLY\",\"$START_TIME_ONLY\",\"$STOP_TIME_ONLY\",\"$TIME_ELAPSED\",\"$REPO_NAME\",\"$COMMIT_MESSAGES_ESCAPED\""
+            echo "\"$START_DATE_ONLY\",\"$START_DATETIME\",\"$STOP_DATETIME\",\"$DURATION\",\"$ACTIVITY_ESCAPED\""
             
             IN_WORK_SESSION=false
             START_HASH=""
             START_TIMESTAMP=""
             START_DATE_ONLY=""
-            START_TIME_ONLY=""
+            START_DATETIME=""
         fi
     fi
 done < "$TMPFILE"
 
 # Handle case where last session doesn't have a STOP
 if [ "$IN_WORK_SESSION" = true ]; then
-    echo "\"$START_DATE_ONLY\",\"$START_TIME_ONLY\",\"\",\"\",\"$REPO_NAME\",\"Unfinished session\""
+    ACTIVITY_WITH_REPO="${REPO_NAME}: Unfinished session"
+    ACTIVITY_ESCAPED=$(echo "$ACTIVITY_WITH_REPO" | sed 's/"/""/g')
+    echo "\"$START_DATE_ONLY\",\"$START_DATETIME\",\"\",\"\",\"$ACTIVITY_ESCAPED\""
 fi
 
 # Clean up
