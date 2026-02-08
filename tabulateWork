@@ -1,43 +1,43 @@
 #!/bin/bash
 
 # Script to generate a work time report from git commits
-# Usage: ./tabulateWork <start_date> <stop_date> <repository_path>
+# Usage: ./tabulateWork [-o output_file] <start_date> <stop_date> <repository_path> [repository_path2 ...]
 
-# Check if all parameters are provided
-if [ -z "$1" ] || [ -z "$2" ] || [ -z "$3" ]; then
+OUTPUT_FILE=""
+REPO_PATHS=()
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -o)
+            OUTPUT_FILE="$2"
+            shift 2
+            ;;
+        *)
+            if [ -z "$START_DATE" ]; then
+                START_DATE="$1"
+            elif [ -z "$STOP_DATE" ]; then
+                STOP_DATE="$1"
+            else
+                REPO_PATHS+=("$1")
+            fi
+            shift
+            ;;
+    esac
+done
+
+# Check if minimum parameters are provided
+if [ -z "$START_DATE" ] || [ -z "$STOP_DATE" ] || [ ${#REPO_PATHS[@]} -eq 0 ]; then
     echo "Error: All parameters are required"
-    echo "Usage: ./tabulateWork <start_date> <stop_date> <repository_path>"
+    echo "Usage: ./tabulateWork [-o output_file] <start_date> <stop_date> <repository_path> [repository_path2 ...]"
+    echo "  -o output_file: Optional output file (if omitted, output goes to stdout)"
     echo "  Dates should be in format: YYYY-MM-DD"
+    echo "  At least one repository path must be provided"
     exit 1
 fi
 
-START_DATE="$1"
-STOP_DATE="$2"
-REPO_PATH="$3"
-
-# Check if the repository path exists
-if [ ! -d "$REPO_PATH" ]; then
-    echo "Error: Repository path does not exist: $REPO_PATH"
-    exit 1
-fi
-
-# Check if it's a git repository
-if [ ! -d "$REPO_PATH/.git" ]; then
-    echo "Error: Not a git repository: $REPO_PATH"
-    exit 1
-fi
-
-# Change to the repository directory
-cd "$REPO_PATH" || exit 1
-
-# Get repository name
-GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
-if [ -z "$GIT_ROOT" ]; then
-    echo "Error: Could not determine git repository root"
-    exit 1
-fi
-
-REPO_NAME=$(basename "$GIT_ROOT")
+# Create temporary file to collect all data rows
+DATA_FILE=$(mktemp)
 
 # Function to convert date to epoch (works on both macOS and Linux)
 date_to_epoch() {
@@ -71,112 +71,164 @@ else
     STOP_DATE_INCLUSIVE="${STOP_DATE} 23:59:59"
 fi
 
-# Get all commits in the date range with their timestamps and messages
-# Format: hash|author_date_iso|message
-# --since is inclusive, --until is exclusive, so we use STOP_DATE_INCLUSIVE which goes to end of day
-TMPFILE=$(mktemp)
-git log --since="$START_DATE_INCLUSIVE" --until="$STOP_DATE_INCLUSIVE" --format="%H|%ai|%s" --reverse > "$TMPFILE"
-
-# Check if we have any commits
-if [ ! -s "$TMPFILE" ]; then
-    echo "No commits found in the date range $START_DATE to $STOP_DATE"
-    rm -f "$TMPFILE"
-    exit 0
-fi
-
-# Output CSV header
-echo "date,start_time,stop_time,duration,activity"
-
-# Process commits to find START/STOP pairs
-START_HASH=""
-START_TIMESTAMP=""
-START_DATE_ONLY=""
-START_DATETIME=""
-IN_WORK_SESSION=false
-
-while IFS='|' read -r hash timestamp message; do
-    # Check if this is a START commit
-    if [[ "$message" =~ ^START\ work\ on\ .+$ ]]; then
-        if [ "$IN_WORK_SESSION" = true ]; then
-            # Previous session didn't have a STOP, output it with empty stop time
-            ACTIVITY_WITH_REPO="${REPO_NAME}: Unfinished session"
-            ACTIVITY_ESCAPED=$(echo "$ACTIVITY_WITH_REPO" | sed 's/"/""/g')
-            echo "\"$START_DATE_ONLY\",\"$START_DATETIME\",\"\",\"\",\"$ACTIVITY_ESCAPED\""
-        fi
-        
-        START_HASH="$hash"
-        START_TIMESTAMP="$timestamp"
-        START_DATE_ONLY=$(echo "$timestamp" | awk '{print $1}')
-        START_DATETIME="${START_DATE_ONLY} $(echo "$timestamp" | awk '{print $2}')"
-        IN_WORK_SESSION=true
-        
-    # Check if this is a STOP commit
-    elif [[ "$message" =~ ^STOP\ work\ on\ .+$ ]]; then
-        if [ "$IN_WORK_SESSION" = true ]; then
-            STOP_TIMESTAMP="$timestamp"
-            STOP_DATE_ONLY=$(echo "$timestamp" | awk '{print $1}')
-            STOP_DATETIME="${STOP_DATE_ONLY} $(echo "$timestamp" | awk '{print $2}')"
-            
-            # Calculate time elapsed
-            START_EPOCH=$(date_to_epoch "$START_TIMESTAMP")
-            STOP_EPOCH=$(date_to_epoch "$STOP_TIMESTAMP")
-            
-            if [ -n "$START_EPOCH" ] && [ -n "$STOP_EPOCH" ] && [ "$STOP_EPOCH" -ge "$START_EPOCH" ]; then
-                ELAPSED_SECONDS=$((STOP_EPOCH - START_EPOCH))
-                DURATION=$(format_elapsed $ELAPSED_SECONDS)
-            else
-                DURATION=""
-            fi
-            
-            # Collect all commit messages between START and STOP (exclusive of START/STOP)
-            # Concatenate all messages with semicolons
-            COMMIT_MESSAGES=""
-            if [ -n "$START_EPOCH" ] && [ -n "$STOP_EPOCH" ]; then
-                while IFS='|' read -r commit_hash commit_timestamp commit_msg; do
-                    # Skip START and STOP commits themselves
-                    if [[ "$commit_msg" =~ ^(START|STOP)\ work\ on\ .+$ ]]; then
-                        continue
-                    fi
-                    
-                    # Check if this commit is between START and STOP (exclusive, since START/STOP are skipped by pattern)
-                    COMMIT_EPOCH=$(date_to_epoch "$commit_timestamp")
-                    
-                    if [ -n "$COMMIT_EPOCH" ] && [ "$COMMIT_EPOCH" -gt "$START_EPOCH" ] && [ "$COMMIT_EPOCH" -lt "$STOP_EPOCH" ]; then
-                        if [ -n "$COMMIT_MESSAGES" ]; then
-                            COMMIT_MESSAGES="${COMMIT_MESSAGES}; ${commit_msg}"
-                        else
-                            COMMIT_MESSAGES="$commit_msg"
-                        fi
-                    fi
-                done < "$TMPFILE"
-            fi
-            
-            # Prepend repository name to activity and escape quotes for CSV
-            if [ -n "$COMMIT_MESSAGES" ]; then
-                ACTIVITY_WITH_REPO="${REPO_NAME}: ${COMMIT_MESSAGES}"
-            else
-                ACTIVITY_WITH_REPO="${REPO_NAME}:"
-            fi
-            ACTIVITY_ESCAPED=$(echo "$ACTIVITY_WITH_REPO" | sed 's/"/""/g')
-            
-            # Output the row
-            echo "\"$START_DATE_ONLY\",\"$START_DATETIME\",\"$STOP_DATETIME\",\"$DURATION\",\"$ACTIVITY_ESCAPED\""
-            
-            IN_WORK_SESSION=false
-            START_HASH=""
-            START_TIMESTAMP=""
-            START_DATE_ONLY=""
-            START_DATETIME=""
-        fi
+# Function to process a single repository
+process_repository() {
+    local REPO_PATH="$1"
+    
+    # Check if the repository path exists
+    if [ ! -d "$REPO_PATH" ]; then
+        echo "Warning: Repository path does not exist: $REPO_PATH" >&2
+        return 1
     fi
-done < "$TMPFILE"
+    
+    # Check if it's a git repository
+    if [ ! -d "$REPO_PATH/.git" ]; then
+        echo "Warning: Not a git repository: $REPO_PATH" >&2
+        return 1
+    fi
+    
+    # Change to the repository directory
+    cd "$REPO_PATH" || return 1
+    
+    # Get repository name
+    GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+    if [ -z "$GIT_ROOT" ]; then
+        echo "Warning: Could not determine git repository root: $REPO_PATH" >&2
+        return 1
+    fi
+    
+    local REPO_NAME=$(basename "$GIT_ROOT")
+    
+    # Get all commits in the date range with their timestamps and messages
+    # Format: hash|author_date_iso|message
+    # --since is inclusive, --until is exclusive, so we use STOP_DATE_INCLUSIVE which goes to end of day
+    local TMPFILE=$(mktemp)
+    git log --since="$START_DATE_INCLUSIVE" --until="$STOP_DATE_INCLUSIVE" --format="%H|%ai|%s" --reverse > "$TMPFILE"
+    
+    # Check if we have any commits
+    if [ ! -s "$TMPFILE" ]; then
+        rm -f "$TMPFILE"
+        return 0
+    fi
+    
+    # Process commits to find START/STOP pairs
+    local START_HASH=""
+    local START_TIMESTAMP=""
+    local START_DATE_ONLY=""
+    local START_DATETIME=""
+    local IN_WORK_SESSION=false
+    
+    while IFS='|' read -r hash timestamp message; do
+        # Check if this is a START commit
+        if [[ "$message" =~ ^START\ work\ on\ .+$ ]]; then
+            if [ "$IN_WORK_SESSION" = true ]; then
+                # Previous session didn't have a STOP, output it with empty stop time
+                local ACTIVITY_WITH_REPO="${REPO_NAME}: Unfinished session"
+                local ACTIVITY_ESCAPED=$(echo "$ACTIVITY_WITH_REPO" | sed 's/"/""/g')
+                echo "\"$START_DATE_ONLY\",\"$START_DATETIME\",\"\",\"\",\"$ACTIVITY_ESCAPED\"" >> "$DATA_FILE"
+            fi
+            
+            START_HASH="$hash"
+            START_TIMESTAMP="$timestamp"
+            START_DATE_ONLY=$(echo "$timestamp" | awk '{print $1}')
+            START_DATETIME="${START_DATE_ONLY} $(echo "$timestamp" | awk '{print $2}')"
+            IN_WORK_SESSION=true
+            
+        # Check if this is a STOP commit
+        elif [[ "$message" =~ ^STOP\ work\ on\ .+$ ]]; then
+            if [ "$IN_WORK_SESSION" = true ]; then
+                local STOP_TIMESTAMP="$timestamp"
+                local STOP_DATE_ONLY=$(echo "$timestamp" | awk '{print $1}')
+                local STOP_DATETIME="${STOP_DATE_ONLY} $(echo "$timestamp" | awk '{print $2}')"
+                
+                # Calculate time elapsed
+                local START_EPOCH=$(date_to_epoch "$START_TIMESTAMP")
+                local STOP_EPOCH=$(date_to_epoch "$STOP_TIMESTAMP")
+                
+                local DURATION=""
+                if [ -n "$START_EPOCH" ] && [ -n "$STOP_EPOCH" ] && [ "$STOP_EPOCH" -ge "$START_EPOCH" ]; then
+                    local ELAPSED_SECONDS=$((STOP_EPOCH - START_EPOCH))
+                    DURATION=$(format_elapsed $ELAPSED_SECONDS)
+                fi
+                
+                # Collect all commit messages between START and STOP (exclusive of START/STOP)
+                # Concatenate all messages with semicolons
+                local COMMIT_MESSAGES=""
+                if [ -n "$START_EPOCH" ] && [ -n "$STOP_EPOCH" ]; then
+                    while IFS='|' read -r commit_hash commit_timestamp commit_msg; do
+                        # Skip START and STOP commits themselves
+                        if [[ "$commit_msg" =~ ^(START|STOP)\ work\ on\ .+$ ]]; then
+                            continue
+                        fi
+                        
+                        # Check if this commit is between START and STOP (exclusive, since START/STOP are skipped by pattern)
+                        local COMMIT_EPOCH=$(date_to_epoch "$commit_timestamp")
+                        
+                        if [ -n "$COMMIT_EPOCH" ] && [ "$COMMIT_EPOCH" -gt "$START_EPOCH" ] && [ "$COMMIT_EPOCH" -lt "$STOP_EPOCH" ]; then
+                            if [ -n "$COMMIT_MESSAGES" ]; then
+                                COMMIT_MESSAGES="${COMMIT_MESSAGES}; ${commit_msg}"
+                            else
+                                COMMIT_MESSAGES="$commit_msg"
+                            fi
+                        fi
+                    done < "$TMPFILE"
+                fi
+                
+                # Prepend repository name to activity and escape quotes for CSV
+                local ACTIVITY_WITH_REPO=""
+                if [ -n "$COMMIT_MESSAGES" ]; then
+                    ACTIVITY_WITH_REPO="${REPO_NAME}: ${COMMIT_MESSAGES}"
+                else
+                    ACTIVITY_WITH_REPO="${REPO_NAME}:"
+                fi
+                local ACTIVITY_ESCAPED=$(echo "$ACTIVITY_WITH_REPO" | sed 's/"/""/g')
+                
+                # Output the row to data file
+                echo "\"$START_DATE_ONLY\",\"$START_DATETIME\",\"$STOP_DATETIME\",\"$DURATION\",\"$ACTIVITY_ESCAPED\"" >> "$DATA_FILE"
+                
+                IN_WORK_SESSION=false
+                START_HASH=""
+                START_TIMESTAMP=""
+                START_DATE_ONLY=""
+                START_DATETIME=""
+            fi
+        fi
+    done < "$TMPFILE"
+    
+    # Handle case where last session doesn't have a STOP
+    if [ "$IN_WORK_SESSION" = true ]; then
+        local ACTIVITY_WITH_REPO="${REPO_NAME}: Unfinished session"
+        local ACTIVITY_ESCAPED=$(echo "$ACTIVITY_WITH_REPO" | sed 's/"/""/g')
+        echo "\"$START_DATE_ONLY\",\"$START_DATETIME\",\"\",\"\",\"$ACTIVITY_ESCAPED\"" >> "$DATA_FILE"
+    fi
+    
+    # Clean up
+    rm -f "$TMPFILE"
+}
 
-# Handle case where last session doesn't have a STOP
-if [ "$IN_WORK_SESSION" = true ]; then
-    ACTIVITY_WITH_REPO="${REPO_NAME}: Unfinished session"
-    ACTIVITY_ESCAPED=$(echo "$ACTIVITY_WITH_REPO" | sed 's/"/""/g')
-    echo "\"$START_DATE_ONLY\",\"$START_DATETIME\",\"\",\"\",\"$ACTIVITY_ESCAPED\""
+# Process each repository (data rows are collected in DATA_FILE)
+for REPO_PATH in "${REPO_PATHS[@]}"; do
+    process_repository "$REPO_PATH"
+done
+
+# Function to output results (sorted and to file or stdout)
+output_results() {
+    # Output CSV header
+    echo "date,start_time,stop_time,duration,activity"
+    
+    # Sort by start_time (column 2) and output
+    # start_time format is "YYYY-MM-DD HH:MM:SS" which sorts correctly as-is
+    if [ -s "$DATA_FILE" ]; then
+        sort -t',' -k2,2 "$DATA_FILE"
+    fi
+}
+
+# Output results to file or stdout
+if [ -n "$OUTPUT_FILE" ]; then
+    output_results > "$OUTPUT_FILE"
+else
+    output_results
 fi
 
 # Clean up
-rm -f "$TMPFILE"
+rm -f "$DATA_FILE"

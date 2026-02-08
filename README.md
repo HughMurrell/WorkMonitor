@@ -105,36 +105,48 @@ The commit will be pushed to GitHub automatically.
 
 ## Generating Work Reports
 
-Use `tabulateWork` to generate a CSV report of work sessions from git commits:
+Use `tabulateWork` to generate a CSV report of work sessions from git commits across one or more repositories:
 
 ```bash
-tabulateWork <start_date> <stop_date> <repository_path>
+tabulateWork [-o output_file] <start_date> <stop_date> <repository_path> [repository_path2 ...]
 ```
 
 **Parameters:**
+- `-o output_file`: Optional output file (if omitted, output goes to stdout)
 - `start_date`: Start date in format YYYY-MM-DD (inclusive)
 - `stop_date`: Stop date in format YYYY-MM-DD (inclusive)
-- `repository_path`: Path to the git repository
+- `repository_path`: Path to a git repository (at least one required, multiple paths allowed)
 
-**Example:**
+**Examples:**
+
+Generate a report for a single repository (output to stdout):
 ```bash
 tabulateWork 2024-01-01 2024-01-31 /path/to/your/repository
 ```
 
+Generate a report for multiple repositories and save to a file:
+```bash
+tabulateWork -o work_report.csv 2024-01-01 2024-01-31 /path/to/repo1 /path/to/repo2 /path/to/repo3
+```
+
+Generate a report and redirect to a file (alternative to `-o`):
+```bash
+tabulateWork 2024-01-01 2024-01-31 /path/to/repo1 /path/to/repo2 > work_report.csv
+```
+
 **Output:**
 The script generates a CSV file with the following columns:
-- `date`: Date of the work session
-- `start_time`: Start time (HH:MM:SS)
-- `stop_time`: Stop time (HH:MM:SS)
-- `time_elapsed`: Time elapsed between start and stop (HH:MM:SS format)
-- `repo_name`: Name of the repository
-- `commit_messages`: Semicolon-separated list of all commit messages between start and stop commits
+- `date`: Date of the work session (YYYY-MM-DD)
+- `start_time`: Full datetime when work started (YYYY-MM-DD HH:MM:SS)
+- `stop_time`: Full datetime when work stopped (YYYY-MM-DD HH:MM:SS)
+- `duration`: Time elapsed between start and stop (HH:MM:SS format)
+- `activity`: Repository name followed by ":" and a semicolon-separated list of all commit messages between start and stop commits
 
-**Redirecting output to a file:**
-```bash
-tabulateWork 2024-01-01 2024-01-31 /path/to/your/repository > work_report.csv
-```
+**Output behavior:**
+- If `-o output_file` is specified, the CSV is written to that file
+- If `-o` is omitted, the CSV is written to stdout (can be redirected with `>`)
+- The output is automatically sorted by `start_time` in chronological order
 
 The CSV file can be opened in spreadsheet applications like Excel, Google Sheets, or LibreOffice Calc for further analysis.
 
-**Note:** The script pairs START and STOP commits to calculate work sessions. If a START commit doesn't have a matching STOP commit, it will be marked as "Unfinished session" with empty stop time and elapsed time fields.
+**Note:** The script pairs START and STOP commits to calculate work sessions. If a START commit doesn't have a matching STOP commit, it will be marked as "Unfinished session" with empty stop time and duration fields. Work sessions from all specified repositories are combined into a single CSV output, sorted chronologically by start time.
