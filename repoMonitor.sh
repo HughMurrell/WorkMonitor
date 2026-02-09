@@ -57,6 +57,25 @@ fi
 
 REPO_NAME=$(basename "$GIT_ROOT")
 
+# Detect the default branch (main or master)
+# Try to get the default branch from the remote tracking branch
+DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
+if [ -z "$DEFAULT_BRANCH" ]; then
+    # Fallback: check if main exists, otherwise use master
+    if git show-ref --verify --quiet refs/heads/main 2>/dev/null; then
+        DEFAULT_BRANCH="main"
+    elif git show-ref --verify --quiet refs/heads/master 2>/dev/null; then
+        DEFAULT_BRANCH="master"
+    else
+        # Last resort: try to get current branch
+        DEFAULT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+        if [ -z "$DEFAULT_BRANCH" ]; then
+            echo "Error: Could not determine default branch"
+            exit 1
+        fi
+    fi
+fi
+
 # Create commit message based on action
 if [ "$ACTION" = "start" ]; then
     COMMIT_MSG="START work on $REPO_NAME"
@@ -67,8 +86,8 @@ fi
 # Create an empty commit
 git commit --allow-empty -m "$COMMIT_MSG"
 
-# Push to GitHub (origin/main)
-git push origin main
+# Push to GitHub using the detected default branch
+git push origin "$DEFAULT_BRANCH"
 
 echo "Empty commit created and pushed with message: $COMMIT_MSG"
 echo "Repository: $REPO_PATH"
