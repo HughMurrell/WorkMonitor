@@ -553,9 +553,6 @@
                     <input type="checkbox" class="repo-checkbox" ${repo.selected ? 'checked' : ''} 
                            onchange="toggleRepository(${index})">
                     <span class="repo-path">${escapeHtml(repo.path)}</span>
-                    <div class="repo-actions">
-                        <button class="btn-danger" onclick="removeRepository('${escapeHtml(repo.path)}')">Remove</button>
-                    </div>
                 </div>
             `).join('');
         }
@@ -596,38 +593,83 @@
                 const data = await response.json();
                 
                 if (response.ok) {
-                    // Get current repository list
-                    const currentRepos = await loadRepositoriesFromServer();
-                    const currentPaths = new Set(currentRepos.map(r => r.path));
+                    console.log('Scan found repositories:', data.repositories);
                     
-                    // Add new repositories that aren't already in the list
-                    let addedCount = 0;
-                    for (const repo of data.repositories) {
-                        if (!currentPaths.has(repo.path)) {
-                            try {
-                                const addResponse = await fetch(`${API_BASE}/api/repositories`, {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ path: repo.path })
-                                });
-                                
-                                if (addResponse.ok) {
-                                    addedCount++;
-                                }
-                            } catch (error) {
-                                console.error('Error adding repository:', repo.path, error);
-                            }
+                    // First, clear all existing repositories
+                    try {
+                        const clearResponse = await fetch(`${API_BASE}/api/repositories/clear`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                        
+                        // Check if response is JSON
+                        const clearContentType = clearResponse.headers.get('content-type');
+                        if (!clearContentType || !clearContentType.includes('application/json')) {
+                            const text = await clearResponse.text();
+                            throw new Error(`Server returned non-JSON response: ${text.substring(0, 100)}`);
                         }
+                        
+                        const clearData = await clearResponse.json();
+                        
+                        if (!clearResponse.ok) {
+                            throw new Error(clearData.error || 'Failed to clear repositories');
+                        }
+                        
+                        console.log('Repositories cleared successfully');
+                    } catch (error) {
+                        console.error('Error clearing repositories:', error);
+                        showMessage('Failed to clear existing repositories: ' + error.message, 'error');
+                        return;
                     }
                     
-                    // Reload repositories
-                    await loadRepositories();
-                    
-                    if (addedCount > 0) {
-                        showMessage(`Found and added ${addedCount} git repository(ies)`, 'success');
-                    } else if (data.repositories.length > 0) {
-                        showMessage(`Found ${data.repositories.length} git repository(ies) (all already in list)`, 'info');
+                    // Then add all found repositories in a single batch operation
+                    if (data.repositories && data.repositories.length > 0) {
+                        const repoPaths = data.repositories.map(repo => repo.path);
+                        
+                        try {
+                            const batchResponse = await fetch(`${API_BASE}/api/repositories/batch-add`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ paths: repoPaths })
+                            });
+                            
+                            // Check if response is JSON
+                            const batchContentType = batchResponse.headers.get('content-type');
+                            if (!batchContentType || !batchContentType.includes('application/json')) {
+                                const text = await batchResponse.text();
+                                throw new Error(`Server returned non-JSON response: ${text.substring(0, 100)}`);
+                            }
+                            
+                            const batchData = await batchResponse.json();
+                            
+                            if (batchResponse.ok) {
+                                // Reload repositories
+                                await loadRepositories();
+                                
+                                const addedCount = batchData.added || 0;
+                                const errorCount = batchData.errors ? batchData.errors.length : 0;
+                                
+                                if (addedCount > 0) {
+                                    showMessage(`Found and added ${addedCount} git repository(ies)${errorCount > 0 ? ` (${errorCount} had errors)` : ''}`, 'success');
+                                } else if (errorCount > 0) {
+                                    showMessage(`Found ${data.repositories.length} repository(ies) but failed to add them. Check console for errors.`, 'error');
+                                } else {
+                                    showMessage('All repositories were already in the list', 'info');
+                                }
+                                
+                                if (errorCount > 0) {
+                                    console.error('Errors adding repositories:', batchData.errors);
+                                }
+                            } else {
+                                showMessage(batchData.error || 'Failed to add repositories', 'error');
+                            }
+                        } catch (error) {
+                            console.error('Error adding repositories:', error);
+                            showMessage('Failed to add repositories: ' + error.message, 'error');
+                        }
                     } else {
+                        // Reload repositories to reflect the cleared state
+                        await loadRepositories();
                         showMessage('No git repositories found in the specified folder', 'info');
                     }
                 } else {

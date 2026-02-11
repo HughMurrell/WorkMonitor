@@ -213,6 +213,76 @@ def remove_repository():
     
     return jsonify({'repositories': repositories})
 
+@app.route('/api/repositories/clear', methods=['POST'])
+def clear_repositories():
+    """Clear all repositories from the list."""
+    try:
+        save_repositories([])
+        # Verify it was cleared
+        repositories = load_repositories()
+        if len(repositories) > 0:
+            return jsonify({'error': 'Failed to clear repositories'}), 500
+        return jsonify({'repositories': [], 'message': 'All repositories cleared'})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Error clearing repositories: {str(e)}'}), 500
+
+@app.route('/api/repositories/batch-add', methods=['POST'])
+def batch_add_repositories():
+    """Add multiple repositories at once."""
+    try:
+        if not request.is_json:
+            return jsonify({'error': 'Request must be JSON'}), 400
+        
+        data = request.json
+        if not data:
+            return jsonify({'error': 'Invalid request data'}), 400
+        
+        repo_paths = data.get('paths', [])
+        
+        if not isinstance(repo_paths, list):
+            return jsonify({'error': 'Paths must be a list'}), 400
+        
+        repositories = load_repositories()
+        existing_paths = {r['path'] for r in repositories}
+        
+        added_count = 0
+        errors = []
+        
+        for path in repo_paths:
+            path = path.strip()
+            if not path:
+                continue
+                
+            path = os.path.abspath(os.path.expanduser(path))
+            
+            # Check if it's a git repository
+            if not os.path.isdir(os.path.join(path, '.git')):
+                errors.append(f"'{path}' is not a git repository")
+                continue
+            
+            # Check if already exists
+            if path in existing_paths:
+                continue  # Skip, already in list
+            
+            # Add to list
+            repositories.append({'path': path, 'selected': False})
+            existing_paths.add(path)
+            added_count += 1
+        
+        save_repositories(repositories)
+        
+        return jsonify({
+            'repositories': repositories,
+            'added': added_count,
+            'errors': errors
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Server error: {str(e)}'}), 500
+
 @app.route('/api/repositories/update', methods=['POST'])
 def update_repositories():
     """Update repository list (for selection changes)."""
