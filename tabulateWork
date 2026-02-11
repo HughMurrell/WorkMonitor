@@ -122,12 +122,12 @@ process_repository() {
         # Check if this is a START commit
         if [[ "$message" =~ ^START\ work\ on\ .+$ ]]; then
             if [ "$IN_WORK_SESSION" = true ]; then
-                # Previous session didn't have a STOP, output it with empty stop time
-                local ACTIVITY_WITH_REPO="${REPO_NAME}: Unfinished session"
-                local ACTIVITY_ESCAPED=$(echo "$ACTIVITY_WITH_REPO" | sed 's/"/""/g')
-                echo "\"$START_DATE_ONLY\",\"$START_DATETIME\",\"\",\"\",\"$ACTIVITY_ESCAPED\"" >> "$DATA_FILE"
+                # Already in a session - ignore this START commit
+                # The session will continue until the next STOP commit
+                continue
             fi
             
+            # Start a new session
             START_HASH="$hash"
             START_TIMESTAMP="$timestamp"
             START_DATE_ONLY=$(echo "$timestamp" | awk '{print $1}')

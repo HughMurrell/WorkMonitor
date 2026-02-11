@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WorkMonitor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .repo-list {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-bottom: 15px;
+        }
+
+        .repo-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 15px;
+            border-bottom: 1px solid #f0f0f0;
+            transition: background-color 0.2s;
+        }
+
+        .repo-item:hover {
+            background-color: #f9f9f9;
+        }
+
+        .repo-item:last-child {
+            border-bottom: none;
+        }
+
+        .repo-checkbox {
+            margin-right: 12px;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .repo-path {
+            flex: 1;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            color: #333;
+            word-break: break-all;
+        }
+
+        .repo-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .btn-primary {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #45a049;
+        }
+
+        .btn-secondary {
+            background: #2196F3;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #0b7dda;
+        }
+
+        .btn-danger {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #da190b;
+        }
+
+        .btn-default {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .btn-default:hover {
+            background: #d0d0d0;
+        }
+
+        .btn-large {
+            padding: 12px 24px;
+            font-size: 16px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .date-inputs {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .date-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        label {
+            font-weight: 500;
+            color: #555;
+            white-space: nowrap;
+        }
+
+        input[type="text"], input[type="date"] {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: 'Monaco', 'Courier New', monospace;
+        }
+
+        input[type="text"]:focus, input[type="date"]:focus {
+            outline: none;
+            border-color: #4CAF50;
+            box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .message {
+            padding: 12px 16px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            display: none;
+        }
+
+        .message.active {
+            display: block;
+        }
+
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .message.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-indicator.connected {
+            background: #4CAF50;
+        }
+
+        .status-indicator.disconnected {
+            background: #f44336;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            max-width: 700px;
+            width: 90%;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .browser-path {
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            color: #666;
+            padding: 8px;
+            background: #f5f5f5;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            word-break: break-all;
+        }
+
+        .browser-list {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            max-height: 400px;
+            overflow-y: auto;
+            margin-bottom: 15px;
+            flex: 1;
+        }
+
+        .browser-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 15px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .browser-item:hover {
+            background-color: #f9f9f9;
+        }
+
+        .browser-item:last-child {
+            border-bottom: none;
+        }
+
+        .browser-item.selected {
+            background-color: #e3f2fd;
+        }
+
+        .browser-icon {
+            margin-right: 10px;
+            font-size: 18px;
+            width: 20px;
+            text-align: center;
+        }
+
+        .browser-name {
+            flex: 1;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+        }
+
+        .browser-git-badge {
+            background: #4CAF50;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .modal-note {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 15px;
+            font-style: italic;
+        }
+
+        .browser-nav {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .browser-loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>
+            <span class="status-indicator" id="statusIndicator"></span>
+            WorkMonitor
+        </h1>
+
+        <div id="message" class="message"></div>
+
+        <!-- Repository Management Section -->
+        <div class="section">
+            <div class="section-title" style="display: flex; align-items: center; gap: 15px;">
+                <span>Git Repositories</span>
+                <div style="display: flex; align-items: center; gap: 10px; flex: 1;">
+                    <label for="reposFolderPath" style="font-size: 14px; font-weight: normal;">Repositories Folder:</label>
+                    <input type="text" id="reposFolderPath" placeholder="~/projects" style="flex: 1; padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-family: 'Monaco', 'Courier New', monospace; font-size: 13px;">
+                    <button class="btn-primary" onclick="scanRepositories()">Scan</button>
+                </div>
+            </div>
+            <div class="repo-list" id="repoList">
+                <div class="empty-state">Enter a folder path above and click "Scan" to find git repositories.</div>
+            </div>
+            <div class="button-group">
+                <button class="btn-danger" onclick="removeSelected()">Remove Selected</button>
+                <button class="btn-default" onclick="selectAll()">Select All</button>
+                <button class="btn-default" onclick="deselectAll()">Deselect All</button>
+            </div>
+        </div>
+
+        <!-- Date Range Section -->
+        <div class="section">
+            <div class="section-title">Date Range</div>
+            <div class="date-inputs">
+                <div class="date-group">
+                    <label for="startDate">Start Date (YYYY-MM-DD):</label>
+                    <input type="text" id="startDate" placeholder="YYYY-MM-DD" value="">
+                </div>
+                <div class="date-group">
+                    <label for="endDate">End Date (YYYY-MM-DD):</label>
+                    <input type="text" id="endDate" placeholder="YYYY-MM-DD" value="">
+                </div>
+            </div>
+        </div>
+
+        <!-- Working Status Section -->
+        <div class="section" id="workingStatusSection" style="display: none;">
+            <div class="section-title">Working Status</div>
+            <div style="padding: 10px; background: #e8f5e9; border-radius: 4px; border-left: 4px solid #4CAF50;">
+                <strong>Working on:</strong> <span id="workingOnRepo" style="font-family: 'Monaco', 'Courier New', monospace;"></span>
+            </div>
+        </div>
+
+        <!-- Actions Section -->
+        <div class="section">
+            <div class="section-title">Actions</div>
+            <div class="button-group">
+                <button class="btn-primary btn-large" onclick="startWork()">Start Work</button>
+                <button class="btn-secondary btn-large" onclick="stopWork()">Stop Work</button>
+                <button class="btn-secondary btn-large" onclick="tabulateWork()">Tabulate Work</button>
+            </div>
+        </div>
+
+        <div class="loading" id="loading">Processing...</div>
+    </div>
+
+    <!-- Modal for selecting repository to start work on -->
+    <div id="selectRepoModal" class="modal" onclick="if(event.target === this) closeSelectRepoModal()">
+        <div class="modal-content">
+            <div class="modal-title">Select Repository to Start Work</div>
+            <div class="browser-list" id="selectRepoList" style="max-height: 300px;">
+                <div class="browser-loading">Loading repositories...</div>
+            </div>
+            <div class="modal-buttons">
+                <button class="btn-default" onclick="closeSelectRepoModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        let repositories = [];
+
+        // Load saved dates from localStorage
+        function loadDates() {
+            const savedStartDate = localStorage.getItem('workMonitor_startDate');
+            const savedEndDate = localStorage.getItem('workMonitor_endDate');
+            const today = new Date().toISOString().split('T')[0];
+            
+            document.getElementById('startDate').value = savedStartDate || today;
+            document.getElementById('endDate').value = savedEndDate || today;
+        }
+
+        // Save dates to localStorage
+        function saveDates() {
+            localStorage.setItem('workMonitor_startDate', document.getElementById('startDate').value);
+            localStorage.setItem('workMonitor_endDate', document.getElementById('endDate').value);
+        }
+
+        // Load saved repositories folder path
+        function loadReposFolderPath() {
+            const savedPath = localStorage.getItem('workMonitor_reposFolderPath');
+            if (savedPath) {
+                document.getElementById('reposFolderPath').value = savedPath;
+            }
+        }
+
+        // Save repositories folder path
+        function saveReposFolderPath() {
+            localStorage.setItem('workMonitor_reposFolderPath', document.getElementById('reposFolderPath').value);
+        }
+
+        // Initialize dates and folder path
+        loadDates();
+        loadReposFolderPath();
+        
+        // Save dates when they change
+        document.getElementById('startDate').addEventListener('change', saveDates);
+        document.getElementById('endDate').addEventListener('change', saveDates);
+        
+        // Save folder path when it changes
+        document.getElementById('reposFolderPath').addEventListener('change', saveReposFolderPath);
+        
+        // Scan on Enter key in folder path input
+        document.getElementById('reposFolderPath').addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') {
+                scanRepositories();
+            }
+        });
+
+        // Check server connection
+        function checkConnection() {
+            fetch(`${API_BASE}/api/repositories`)
+                .then(() => {
+                    document.getElementById('statusIndicator').className = 'status-indicator connected';
+                })
+                .catch(() => {
+                    document.getElementById('statusIndicator').className = 'status-indicator disconnected';
+                });
+        }
+
+        // Show message
+        function showMessage(text, type = 'info') {
+            const msgEl = document.getElementById('message');
+            msgEl.textContent = text;
+            msgEl.className = `message ${type} active`;
+            setTimeout(() => {
+                msgEl.classList.remove('active');
+            }, 5000);
+        }
+
+        // Load repositories
+        async function loadRepositories() {
+            try {
+                const response = await fetch(`${API_BASE}/api/repositories`);
+                const data = await response.json();
+                repositories = data.repositories || [];
+                renderRepositories();
+            } catch (error) {
+                showMessage('Failed to load repositories: ' + error.message, 'error');
+            }
+        }
+
+        // Render repository list
+        function renderRepositories() {
+            const repoList = document.getElementById('repoList');
+            
+            if (repositories.length === 0) {
+                repoList.innerHTML = '<div class="empty-state">Enter a folder path above and click "Scan" to find git repositories.</div>';
+                return;
+            }
+
+            repoList.innerHTML = repositories.map((repo, index) => `
+                <div class="repo-item">
+                    <input type="checkbox" class="repo-checkbox" ${repo.selected ? 'checked' : ''} 
+                           onchange="toggleRepository(${index})">
+                    <span class="repo-path">${escapeHtml(repo.path)}</span>
+                    <div class="repo-actions">
+                        <button class="btn-danger" onclick="removeRepository('${escapeHtml(repo.path)}')">Remove</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Escape HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Scan folder for git repositories
+        async function scanRepositories() {
+            const folderPath = document.getElementById('reposFolderPath').value.trim();
+            
+            if (!folderPath) {
+                showMessage('Please enter a folder path', 'error');
+                return;
+            }
+
+            saveReposFolderPath();
+            document.getElementById('loading').classList.add('active');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/scan-repositories`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ folderPath: folderPath })
+                });
+
+                // Check if response is JSON
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const text = await response.text();
+                    throw new Error(`Server returned non-JSON response. Make sure the server is running. Response: ${text.substring(0, 200)}`);
+                }
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Get current repository list
+                    const currentRepos = await loadRepositoriesFromServer();
+                    const currentPaths = new Set(currentRepos.map(r => r.path));
+                    
+                    // Add new repositories that aren't already in the list
+                    let addedCount = 0;
+                    for (const repo of data.repositories) {
+                        if (!currentPaths.has(repo.path)) {
+                            try {
+                                const addResponse = await fetch(`${API_BASE}/api/repositories`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ path: repo.path })
+                                });
+                                
+                                if (addResponse.ok) {
+                                    addedCount++;
+                                }
+                            } catch (error) {
+                                console.error('Error adding repository:', repo.path, error);
+                            }
+                        }
+                    }
+                    
+                    // Reload repositories
+                    await loadRepositories();
+                    
+                    if (addedCount > 0) {
+                        showMessage(`Found and added ${addedCount} git repository(ies)`, 'success');
+                    } else if (data.repositories.length > 0) {
+                        showMessage(`Found ${data.repositories.length} git repository(ies) (all already in list)`, 'info');
+                    } else {
+                        showMessage('No git repositories found in the specified folder', 'info');
+                    }
+                } else {
+                    showMessage(data.error || 'Failed to scan folder', 'error');
+                }
+            } catch (error) {
+                console.error('Scan repositories error:', error);
+                showMessage('Failed to scan folder: ' + error.message, 'error');
+            } finally {
+                document.getElementById('loading').classList.remove('active');
+            }
+        }
+
+        // Load repositories from server (helper function)
+        async function loadRepositoriesFromServer() {
+            try {
+                const response = await fetch(`${API_BASE}/api/repositories`);
+                const data = await response.json();
+                return data.repositories || [];
+            } catch (error) {
+                return [];
+            }
+        }
+
+        // Remove repository
+        async function removeRepository(path) {
+            if (!confirm(`Remove repository: ${path}?`)) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/api/repositories`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: path })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    repositories = data.repositories;
+                    renderRepositories();
+                    showMessage('Repository removed', 'success');
+                } else {
+                    showMessage(data.error || 'Failed to remove repository', 'error');
+                }
+            } catch (error) {
+                showMessage('Failed to remove repository: ' + error.message, 'error');
+            }
+        }
+
+        // Remove selected repositories
+        function removeSelected() {
+            const selected = repositories.filter(r => r.selected);
+            if (selected.length === 0) {
+                showMessage('No repositories selected', 'error');
+                return;
+            }
+
+            if (confirm(`Remove ${selected.length} selected repository(ies)?`)) {
+                selected.forEach(repo => removeRepository(repo.path));
+            }
+        }
+
+        // Toggle repository selection
+        async function toggleRepository(index) {
+            repositories[index].selected = !repositories[index].selected;
+            
+            try {
+                await fetch(`${API_BASE}/api/repositories/update`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ repositories: repositories })
+                });
+            } catch (error) {
+                showMessage('Failed to update selection', 'error');
+            }
+            
+            renderRepositories();
+        }
+
+        // Select all
+        async function selectAll() {
+            repositories.forEach(r => r.selected = true);
+            await updateRepositories();
+            renderRepositories();
+        }
+
+        // Deselect all
+        async function deselectAll() {
+            repositories.forEach(r => r.selected = false);
+            await updateRepositories();
+            renderRepositories();
+        }
+
+        // Update repositories on server
+        async function updateRepositories() {
+            try {
+                await fetch(`${API_BASE}/api/repositories/update`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ repositories: repositories })
+                });
+            } catch (error) {
+                showMessage('Failed to update repositories', 'error');
+            }
+        }
+
+        // Get selected repositories
+        function getSelectedRepositories() {
+            return repositories.filter(r => r.selected).map(r => r.path);
+        }
+
+        // Get currently working repository
+        function getWorkingRepository() {
+            return localStorage.getItem('workMonitor_workingOn');
+        }
+
+        // Set currently working repository
+        function setWorkingRepository(repoPath) {
+            if (repoPath) {
+                localStorage.setItem('workMonitor_workingOn', repoPath);
+                updateWorkingStatus();
+            } else {
+                localStorage.removeItem('workMonitor_workingOn');
+                document.getElementById('workingStatusSection').style.display = 'none';
+            }
+        }
+
+        // Update working status display
+        function updateWorkingStatus() {
+            const workingRepo = getWorkingRepository();
+            if (workingRepo) {
+                document.getElementById('workingOnRepo').textContent = workingRepo;
+                document.getElementById('workingStatusSection').style.display = 'block';
+            } else {
+                document.getElementById('workingStatusSection').style.display = 'none';
+            }
+        }
+
+        // Show repository selection modal
+        function showSelectRepoModal() {
+            const modal = document.getElementById('selectRepoModal');
+            const list = document.getElementById('selectRepoList');
+            
+            if (repositories.length === 0) {
+                list.innerHTML = '<div class="browser-loading">No repositories available. Please scan for repositories first.</div>';
+                modal.classList.add('active');
+                return;
+            }
+
+            list.innerHTML = repositories.map((repo, index) => {
+                const escapedPath = repo.path.replace(/'/g, "\\'");
+                return `
+                    <div class="browser-item" onclick="selectRepositoryForWork('${escapedPath}')">
+                        <span class="browser-icon">📁</span>
+                        <span class="browser-name">${escapeHtml(repo.path)}</span>
+                    </div>
+                `;
+            }).join('');
+            
+            modal.classList.add('active');
+        }
+
+        // Close repository selection modal
+        function closeSelectRepoModal() {
+            document.getElementById('selectRepoModal').classList.remove('active');
+        }
+
+        // Select repository and start work
+        async function selectRepositoryForWork(repoPath) {
+            closeSelectRepoModal();
+            
+            // Check if already working on a repository
+            const currentWorking = getWorkingRepository();
+            if (currentWorking && currentWorking !== repoPath) {
+                if (!confirm(`You are currently working on:\n${currentWorking}\n\nDo you want to stop that and start work on:\n${repoPath}?`)) {
+                    return;
+                }
+            }
+
+            document.getElementById('loading').classList.add('active');
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/start-work`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ repositories: [repoPath] })
+                });
+
+                // Check if response is JSON
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const text = await response.text();
+                    throw new Error(`Server returned non-JSON response. Make sure the server is running. Response: ${text.substring(0, 200)}`);
+                }
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    if (data.errors && data.errors.length > 0) {
+                        showMessage(`Failed to start work: ${data.errors.join(', ')}`, 'error');
+                    } else {
+                        setWorkingRepository(repoPath);
+                        showMessage(`Started work on repository`, 'success');
+                    }
+                } else {
+                    showMessage(data.error || 'Failed to start work', 'error');
+                }
+            } catch (error) {
+                showMessage('Failed to start work: ' + error.message, 'error');
+            } finally {
+                document.getElementById('loading').classList.remove('active');
+            }
+        }
+
+        // Start work
+        function startWork() {
+            showSelectRepoModal();
+        }
+
+        // Stop work
+        async function stopWork() {
+            const workingRepo = getWorkingRepository();
+            
+            if (!workingRepo) {
+                showMessage('You are not currently working on any repository.', 'error');
+                return;
+            }
+
+            // Show warning dialog
+            const confirmed = confirm(
+                `You are about to stop work on:\n${workingRepo}\n\n` +
+                `Have you committed all your work with a suitable commit message?\n\n` +
+                `Click OK to stop work, or Cancel to continue working.`
+            );
+
+            if (!confirmed) {
+                return;
+            }
+
+            document.getElementById('loading').classList.add('active');
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/stop-work`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ repositories: [workingRepo] })
+                });
+
+                // Check if response is JSON
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const text = await response.text();
+                    throw new Error(`Server returned non-JSON response. Make sure the server is running. Response: ${text.substring(0, 200)}`);
+                }
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    if (data.errors && data.errors.length > 0) {
+                        showMessage(`Failed to stop work: ${data.errors.join(', ')}`, 'error');
+                    } else {
+                        setWorkingRepository(null);
+                        showMessage('Stopped work on repository', 'success');
+                    }
+                } else {
+                    showMessage(data.error || 'Failed to stop work', 'error');
+                }
+            } catch (error) {
+                showMessage('Failed to stop work: ' + error.message, 'error');
+            } finally {
+                document.getElementById('loading').classList.remove('active');
+            }
+        }
+
+        // Tabulate work
+        async function tabulateWork() {
+            const selected = getSelectedRepositories();
+            if (selected.length === 0) {
+                showMessage('Please select at least one repository', 'error');
+                return;
+            }
+
+            const startDate = document.getElementById('startDate').value.trim();
+            const endDate = document.getElementById('endDate').value.trim();
+
+            if (!startDate || !endDate) {
+                showMessage('Please enter both start and end dates', 'error');
+                return;
+            }
+
+            // Validate date format
+            const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+            if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
+                showMessage('Invalid date format. Please use YYYY-MM-DD format', 'error');
+                return;
+            }
+
+            // Ask for output file
+            const outputFile = prompt('Enter output file path:', `~/Downloads/work_report_${startDate}_${endDate}.csv`);
+            if (!outputFile) return;
+
+            document.getElementById('loading').classList.add('active');
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/tabulate-work`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        repositories: selected,
+                        startDate: startDate,
+                        endDate: endDate,
+                        outputFile: outputFile
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showMessage(data.message || 'Work report generated successfully', 'success');
+                } else {
+                    showMessage(data.error || 'Failed to generate work report', 'error');
+                }
+            } catch (error) {
+                showMessage('Failed to generate work report: ' + error.message, 'error');
+            } finally {
+                document.getElementById('loading').classList.remove('active');
+            }
+        }
+
+        // Initialize
+        checkConnection();
+        loadRepositories();
+        updateWorkingStatus(); // Show current working status
+        setInterval(checkConnection, 5000); // Check connection every 5 seconds
+    </script>
+</body>
+</html>
+
+

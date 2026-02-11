@@ -150,3 +150,46 @@ The script generates a CSV file with the following columns:
 The CSV file can be opened in spreadsheet applications like Excel, Google Sheets, or LibreOffice Calc for further analysis.
 
 **Note:** The script pairs START and STOP commits to calculate work sessions. If a START commit doesn't have a matching STOP commit, it will be marked as "Unfinished session" with empty stop time and duration fields. Work sessions from all specified repositories are combined into a single CSV output, sorted chronologically by start time.
+
+## Web Interface
+
+WorkMonitor includes a web-based interface for easier management of work sessions across multiple repositories.
+
+### Installation
+
+1. **Install Python dependencies:**
+   ```bash
+   pip3 install -r requirements.txt
+   ```
+   
+   Or install manually:
+   ```bash
+   pip3 install Flask flask-cors
+   ```
+
+### Usage
+
+1. **Start the web server:**
+   ```bash
+   ./monitorWork_server.py
+   ```
+   
+   The server will start on `http://127.0.0.1:5000` by default.
+
+2. **Open the web interface:**
+   - Open `monitorWork.html` in your browser, or
+   - Visit `http://127.0.0.1:5000` in your web browser
+
+3. **Use the interface:**
+   - Add repositories using the "Add Repository" button
+   - Select/deselect repositories using checkboxes
+   - Enter date ranges for tabulation
+   - Click "Start Work", "Stop Work", or "Tabulate Work" buttons
+
+**Server options:**
+```bash
+./monitorWork_server.py --port 8080    # Use custom port
+./monitorWork_server.py --host 0.0.0.0 # Allow access from other machines (not recommended for security)
+```
+
+**Note:** The web server stores repository data in the same location as the Python GUI (`~/.workmonitor/repositories.json`), so both interfaces share the same repository list.
