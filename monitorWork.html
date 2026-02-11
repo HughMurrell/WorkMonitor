@@ -593,8 +593,6 @@
                 const data = await response.json();
                 
                 if (response.ok) {
-                    console.log('Scan found repositories:', data.repositories);
-                    
                     // First, clear all existing repositories
                     try {
                         const clearResponse = await fetch(`${API_BASE}/api/repositories/clear`, {
@@ -614,8 +612,6 @@
                         if (!clearResponse.ok) {
                             throw new Error(clearData.error || 'Failed to clear repositories');
                         }
-                        
-                        console.log('Repositories cleared successfully');
                     } catch (error) {
                         console.error('Error clearing repositories:', error);
                         showMessage('Failed to clear existing repositories: ' + error.message, 'error');
